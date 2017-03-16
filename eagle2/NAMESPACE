@@ -1,0 +1,13 @@
+useDynLib(eagle2, .registration = TRUE)
+
+export(eagle2)
+export(stanmodels)
+export(get_coefs)
+export(detect_homozygotes)
+
+importFrom(rstan,optimizing)
+import(foreach)
+importFrom(abind,abind)
+
+import(Rcpp)
+import(methods)
