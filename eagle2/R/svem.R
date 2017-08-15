@@ -1,3 +1,6 @@
+
+# Sampler should be a stanfit object. This creates a skeleton list of
+# parameters with the correct dimensionality. 
 get_skeleton=function(sampler) {
   m_pars <- sampler@model_pars
   idx_wo_lp <- which(m_pars != "lp__")
@@ -6,7 +9,8 @@ get_skeleton=function(sampler) {
   rstan:::create_skeleton(m_pars, p_dims)
 }
 
-# would rather use AdaMax here instead.
+# Adagrad stochastic optimizer
+# Would rather use AdaMax instead? 
 adagrad=function(grad, x, master_stepsize=0.1, eps=1e-6, iterations=300, verbose=F) {
   historical_grad=0
   progress=list()
@@ -20,6 +24,22 @@ adagrad=function(grad, x, master_stepsize=0.1, eps=1e-6, iterations=300, verbose
   list(x=x,log_prob=unlist(progress))
 }
 
+#' Stochastic variational EM. 
+#' 
+#' Uses Stochastic Variational Inference (SVI) over parameters where to_optim==F and regular Stochastic Gradient (well Adagrad) over parameters for which to_optim==T. 
+#' 
+#' @param grad_log_prob Function which takes unconstrained parameters and returns the gradient of the log joint distribution. 
+#' @param to_optim Logical vector denoting which parameters should be optimized over rather than integrated over using SVI. 
+#' @param init Initialization. 
+#' @param plot.elbo Whether to plot the progress in term of the ELBO (Evidence Lower Bound)
+#' @param samples_for_elbo How many samples to use to calculate the final ELBO. 
+#' @param log_prob (optional) Function returning log joint distribution. 
+#' 
+#' @return List with
+#' \item{m}{Mean of approximate posterior for each parameter (or point estimate)}
+#' \item{s}{Standard deviation of approximate posterior for each param, or 0 or optimized params}
+#' \item{elbo_func}{Function to calculate (noisy) estimate of ELBO using a single sample from rnorm(sum(!to_optim)).}
+#' \item{elbo_progress}{Vector of estimated ELBO with algorithm iteration.}
 svem=function(grad_log_prob, to_optim, init=NULL, plot.elbo=F, samples_for_elbo=10000, log_prob=NULL, ...) {
 
   #to_optim=c(F,T,T)
