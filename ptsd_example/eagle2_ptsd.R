@@ -5,8 +5,11 @@
 # Load required packages
 require(ggplot2)
 require(data.table)
+require(dplyr)
 require(doMC)
 registerDoMC(detectCores()-1)
+
+USE_RANDOM_EFFECT=F
 
 require(reshape2)
 
@@ -42,7 +45,7 @@ cast_me=function(snp_indices, stat) do.call(abind, c(foreach(snp=snp_indices) %d
 }, along=3 ))
 
 # Run over genes (may take an hour or so)
-results = rbindlist( foreach(gene=test_genes) %dopar% {
+results = foreach(gene=test_genes, .combine = bind_rows) %dopar% {
   
   # Get SNPs in this gene
   snp_names=gene_snp$chr_pos[ gene_snp$gene %in% gene ]
@@ -58,11 +61,11 @@ results = rbindlist( foreach(gene=test_genes) %dopar% {
   if (is.null(filtered_data)) return(NULL)
   
   # Run EAGLE2
-  eagle_results = eagle2( filtered_data$a, filtered_data$nh )
+  eagle_results = if (USE_RANDOM_EFFECT) eagle2_re( filtered_data$a, filtered_data$nh ) else eagle2_re( filtered_data$a, filtered_data$nh ) 
   
   # Store LRT p-value, coefficients, standard errors and Wald p-values [assumes just two conditions]
-  data.frame(gene=gene, lrtp=eagle_results$lrtp, get_coefs(eagle_results$fit_full)[2,])
-} )
+  if (USE_RANDOM_EFFECT) data.frame(gene=gene, lrtp=eagle_results$lrtp, coef=eagle_results$fit_full$beta[2]) else data.frame(gene=gene, lrtp=eagle_results$lrtp, get_coefs(eagle_results$fit_full)[2,])
+} 
 
 # Do the LRT and Wald p-values agree
 theme_set(theme_bw(base_size = 14))
