@@ -72,7 +72,7 @@ results = foreach(gene=test_genes, .combine = bind_rows) %dopar% {
   
   # Run EAGLE2
   eagle_results = if (USE_RANDOM_EFFECT) eagle2_re( filtered_data$a, filtered_data$nh ) else eagle2( filtered_data$a, filtered_data$nh ) 
-  
+  if (is.null(eagle_results)) return(NULL)
   # Store LRT p-value, coefficients, standard errors and Wald p-values [assumes just two conditions]
   if (USE_RANDOM_EFFECT) data.frame(gene=gene, lrtp=eagle_results$lrtp, coef=eagle_results$fit_full$beta[2]) else data.frame(gene=gene, lrtp=eagle_results$lrtp, get_coefs(eagle_results$fit_full)[2,])
 } 

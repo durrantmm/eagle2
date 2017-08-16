@@ -66,11 +66,11 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,burnin=3000,iterations=1
   
   cat("Fitting initial null model\n")
   v_init=svem(null_gradient_function, to_optim, init, plot.elbo = F, log_prob = null_likelihood, iterations=burnin, master_stepsize=learning_rate, ...)
-  
+  if (is.null(v_init)) return(NULL)
   cat("Re-fitting null model\n")
   set.seed(1)
   v_null=svem(null_gradient_function, to_optim, v_init, plot.elbo = F, log_prob = null_likelihood, iterations=iterations, master_stepsize=learning_rate, ...)
-  
+  if (is.null(v_init)) return(NULL)
   # Fit alternative model
   dat_full=dat
   temp=matrix(0,N,Ti)
@@ -104,7 +104,7 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,burnin=3000,iterations=1
   set.seed(1)
   cat("Fitting full model\n")
   v_full=svem(full_gradient_function, to_optim_full, init=init, plot.elbo = F, log_prob = full_likelihood, iterations=iterations, master_stepsize=learning_rate, ... )
-
+  if (is.null(v_full)) return(NULL)
   # using the same random draws to estimate the deviance is more statistically efficient
   nintegrate=sum(!to_optim)
   loglr=mean( foreach(g=1:elbo_samples, .combine=c) %do% {

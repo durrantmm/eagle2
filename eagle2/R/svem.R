@@ -25,6 +25,10 @@ adagrad=function(grad, x, master_stepsize=0.1, eps=1e-6, iterations=300, verbose
   list(x=x,log_prob=unlist(progress))
 }
 
+robust_adagrad=function(...) {
+  tryCatch( adagrad(...), error=function(g) NULL )
+}
+
 # pretty unstable
 adamax=function(grad, x, master_stepsize=0.1, b1=0.1, b2=0.001, iterations=300, verbose=F) {
   momentum=x * 0.
@@ -73,7 +77,7 @@ adadelta=function(grad, x, master_stepsize=1.0, oneMrho=0.05, eps=1e-8, iteratio
 #' \item{s}{Standard deviation of approximate posterior for each param, or 0 or optimized params}
 #' \item{elbo_func}{Function to calculate (noisy) estimate of ELBO using a single sample from rnorm(sum(!to_optim)).}
 #' \item{elbo_progress}{Vector of estimated ELBO with algorithm iteration.}
-svem=function(grad_log_prob, to_optim, init=NULL, plot.elbo=F, log_prob=NULL, ...) {
+svem=function(grad_log_prob, to_optim, init=NULL, plot.elbo=F, log_prob=NULL, master_stepsize=1., ...) {
 
   #to_optim=c(F,T,T)
   noptim=sum(to_optim)
@@ -104,7 +108,13 @@ svem=function(grad_log_prob, to_optim, init=NULL, plot.elbo=F, log_prob=NULL, ..
   
   stopifnot(length(init)==noptim+2*nintegrate)
   
-  adagrad_fit=adagrad(elbo_grad_mixed, init, ...) 
+  adagrad_fit=robust_adagrad(elbo_grad_mixed, init, master_stepsize, ...) 
+  while(is.null(adagrad_fit)) {
+    master_stepsize=master_stepsize/2
+    cat("Reducing learning rate to",master_stepsize,"\n")
+    adagrad_fit=robust_adagrad(elbo_grad_mixed, init, master_stepsize, ...)
+    if (master_stepsize < 1e-12) return(NULL)
+  }
   
   elbo_func=function(eta=rnorm(nintegrate)) attr( elbo_grad_mixed(adagrad_fit$x, eta), "log_prob" )
   
