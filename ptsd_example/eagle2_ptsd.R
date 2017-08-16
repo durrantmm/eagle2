@@ -22,12 +22,10 @@ rownames(meta)=meta$Run_s
 meta$id=sort(rep(1:94,2))
 
 # Load counts 
-counts_data=fread("zcat < ptsd_chr22.txt.gz", sep="\t")
-setDF(counts_data)
+counts_data=fread("zcat < ptsd_chr22.txt.gz", sep="\t", data.table = F)
 
 # Load gene - SNP mapping
-gene_snp=fread("zcat < gene_snps_chr22.txt.gz", sep="\t")
-setDF(gene_snp)
+gene_snp=fread("zcat < gene_snps_chr22.txt.gz", sep="\t", data.table = F)
 
 test_genes=unique(gene_snp$gene)
 
@@ -37,31 +35,32 @@ counts_data$id=factor(meta[counts_data$srr,"id"])
 gene_snp$chr_pos=paste( gene_snp$chr, gene_snp$pos, sep=":")
 
 # Helper function to make [individuals x conditions x SNPs] count tensor
-cast_me=function(snp_indices, stat) do.call(abind, c(foreach(snp=snp_indices) %do% {
-  res=dcast(counts_data[snp, ,drop=F], id ~ cond, value.var = stat, drop=F )
+cast_me=function(snp_names, stat) { do.call(abind, c(foreach(snp=snp_names) %do% {
+  res=dcast(counts_data[ counts_data$chr_pos==snp, ,drop=F], id ~ cond, value.var = stat, drop=F )
   res$id=NULL
   res[is.na(res)]=0
   res
-}, along=3 ))
+}, along=3 )) }
 
 # Run over genes (may take an hour or so)
 results = foreach(gene=test_genes, .combine = bind_rows) %dopar% {
   
   # Get SNPs in this gene
   snp_names=gene_snp$chr_pos[ gene_snp$gene %in% gene ]
-  snp_indices = which(counts_data$chr_pos == snp_names)
+  #snp_indices = which(counts_data$chr_pos %in% snp_names)
+  snp_names = intersect(counts_data$chr_pos, snp_names)
 
   # Get alternative allele counts
-  a=cast_me( snp_indices, "y" )
+  a=cast_me( snp_names, "y" )
   # Get total counts
-  nh=a+cast_me( snp_indices, "r" )
+  nh=a+cast_me( snp_names, "r" )
   
   # Remove SNP-gene pairs that are probably homozygous
   filtered_data=detect_homozygotes(a,nh)
   if (is.null(filtered_data)) return(NULL)
   
   # Run EAGLE2
-  eagle_results = if (USE_RANDOM_EFFECT) eagle2_re( filtered_data$a, filtered_data$nh ) else eagle2_re( filtered_data$a, filtered_data$nh ) 
+  eagle_results = if (USE_RANDOM_EFFECT) eagle2_re( filtered_data$a, filtered_data$nh ) else eagle2( filtered_data$a, filtered_data$nh ) 
   
   # Store LRT p-value, coefficients, standard errors and Wald p-values [assumes just two conditions]
   if (USE_RANDOM_EFFECT) data.frame(gene=gene, lrtp=eagle_results$lrtp, coef=eagle_results$fit_full$beta[2]) else data.frame(gene=gene, lrtp=eagle_results$lrtp, get_coefs(eagle_results$fit_full)[2,])
