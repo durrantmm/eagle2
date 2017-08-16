@@ -58,6 +58,18 @@ results = foreach(gene=test_genes, .combine = bind_rows) %dopar% {
   filtered_data=detect_homozygotes(a,nh)
   if (is.null(filtered_data)) return(NULL)
   
+  if (F)  {
+    require(rstan)
+    ys=filtered_data$a
+    ns=filtered_data$nh
+    concShape=1.0001
+    concRate=1e-4
+    elbo_samples=0
+    stanmodels=eagle2:::stanmodels
+    svem=eagle2:::svem
+    get_skeleton=eagle2:::get_skeleton
+  }
+  
   # Run EAGLE2
   eagle_results = if (USE_RANDOM_EFFECT) eagle2_re( filtered_data$a, filtered_data$nh ) else eagle2( filtered_data$a, filtered_data$nh ) 
   

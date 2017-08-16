@@ -10,14 +10,48 @@ get_skeleton=function(sampler) {
 }
 
 # Adagrad stochastic optimizer
-# Would rather use AdaMax instead? 
 adagrad=function(grad, x, master_stepsize=0.1, eps=1e-6, iterations=300, verbose=F) {
-  historical_grad=0
+  historical_grad=x * 0.
+  #remember_g2=x * 0.
   progress=list()
   for (i in 1:iterations) {
     g=grad(x)
     historical_grad=historical_grad+g^2
+    #remember_g2=0.99 * remember_g2 + 0.01 * g
     x=x-master_stepsize*g/(eps+sqrt(historical_grad))
+    progress[[i]]=attr(g,"log_prob")
+    if (verbose) cat(i, attr(g,"log_prob"), "\n")
+  }
+  list(x=x,log_prob=unlist(progress))
+}
+
+# pretty unstable
+adamax=function(grad, x, master_stepsize=0.1, b1=0.1, b2=0.001, iterations=300, verbose=F) {
+  momentum=x * 0.
+  inf_norm=x * 0.
+  progress=list()
+  for (i in 1:iterations) {
+    g=grad(x)
+    momentum=(1. - b1) * momentum + b1 * g
+    inf_norm=max( b2 * inf_norm, abs(g) + 1e-8 )
+    x=x - master_stepsize * momentum / inf_norm
+    progress[[i]]=attr(g,"log_prob")
+    if (verbose) cat(i, attr(g,"log_prob"), "\n")
+  }
+  list(x=x,log_prob=unlist(progress))
+}
+
+# adadelta: works but goes very slowly
+adadelta=function(grad, x, master_stepsize=1.0, oneMrho=0.05, eps=1e-8, iterations=300, verbose=F) {
+  Eg2=x * 0.
+  Edx2=x * 0.
+  progress=list()
+  for (i in 1:iterations) {
+    g=grad(x)
+    Eg2=(1. - oneMrho) * Eg2 + oneMrho * g^2
+    deltax=sqrt(Edx2)/sqrt(Eg2 + eps) * g
+    Edx2=(1. - oneMrho) * Edx2 + oneMrho * deltax^2
+    x=x - master_stepsize * deltax
     progress[[i]]=attr(g,"log_prob")
     if (verbose) cat(i, attr(g,"log_prob"), "\n")
   }
@@ -32,7 +66,6 @@ adagrad=function(grad, x, master_stepsize=0.1, eps=1e-6, iterations=300, verbose
 #' @param to_optim Logical vector denoting which parameters should be optimized over rather than integrated over using SVI. 
 #' @param init Initialization. 
 #' @param plot.elbo Whether to plot the progress in term of the ELBO (Evidence Lower Bound)
-#' @param samples_for_elbo How many samples to use to calculate the final ELBO. 
 #' @param log_prob (optional) Function returning log joint distribution. 
 #' 
 #' @return List with
@@ -40,7 +73,7 @@ adagrad=function(grad, x, master_stepsize=0.1, eps=1e-6, iterations=300, verbose
 #' \item{s}{Standard deviation of approximate posterior for each param, or 0 or optimized params}
 #' \item{elbo_func}{Function to calculate (noisy) estimate of ELBO using a single sample from rnorm(sum(!to_optim)).}
 #' \item{elbo_progress}{Vector of estimated ELBO with algorithm iteration.}
-svem=function(grad_log_prob, to_optim, init=NULL, plot.elbo=F, samples_for_elbo=10000, log_prob=NULL, ...) {
+svem=function(grad_log_prob, to_optim, init=NULL, plot.elbo=F, log_prob=NULL, ...) {
 
   #to_optim=c(F,T,T)
   noptim=sum(to_optim)
@@ -75,8 +108,6 @@ svem=function(grad_log_prob, to_optim, init=NULL, plot.elbo=F, samples_for_elbo=
   
   elbo_func=function(eta=rnorm(nintegrate)) attr( elbo_grad_mixed(adagrad_fit$x, eta), "log_prob" )
   
-  elbo_estimate=if (samples_for_elbo>=1) mean(unlist(foreach(i=1:samples_for_elbo) %do% { elbo_func() }), na.rm=T) else NA
-  
   if (plot.elbo) {
     require(stats)
     ma <- function(x,n=5){stats::filter(x,rep(1/n,n), sides=2)}
@@ -110,5 +141,5 @@ svem=function(grad_log_prob, to_optim, init=NULL, plot.elbo=F, samples_for_elbo=
   m[!to_optim]=temp[1:nintegrate]
   s[!to_optim]=exp(temp[(nintegrate+1):(2*nintegrate)])
   
-  list(m=m, s=s, elbo=elbo_estimate, elbo_func= elbo_func, elbo_progress=adagrad_fit$log_prob)
+  list(m=m, s=s, elbo_func= elbo_func, elbo_progress=adagrad_fit$log_prob)
 }
