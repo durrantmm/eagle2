@@ -15,7 +15,8 @@ Imports:
     rstan (>= 2.14.1),
     rstantools (>= 1.1.0),
     foreach (>= 1.4.3),
-    abind (>= 1.4)
+    abind (>= 1.4),
+    roxygen2 (>= 6.0.1)
 LinkingTo: StanHeaders (>= 2.14.0.1), rstan (>= 2.14.1), BH (>= 1.62.0.1), Rcpp
     (>= 0.12.9), RcppEigen (>= 0.3.2.9.0)
 RoxygenNote: 6.0.1
