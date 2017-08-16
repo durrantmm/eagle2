@@ -13,7 +13,7 @@ inv_logit=function(g) { 1.0/(1.0+exp(-g)) }
 #' @param concShape Shape of prior on concentration
 #' @param concRate Rate of prior on concentration
 #' @return List with likelihood ratio, p-value and fits
-#' @importFrom rstan optimizing
+#' @importFrom rstan optimizing sampling
 #' @importFrom foreach foreach %do%
 #' @importFrom abind abind
 #' @export
