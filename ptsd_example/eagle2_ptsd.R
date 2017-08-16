@@ -3,13 +3,12 @@
 # Accession number GSE64814. 
 
 # Load required packages
-require(ggplot2)
 require(data.table)
 require(dplyr)
 require(doMC)
 registerDoMC(detectCores()-1)
 
-USE_RANDOM_EFFECT=F
+USE_RANDOM_EFFECT=T
 
 require(reshape2)
 
@@ -67,12 +66,16 @@ results = foreach(gene=test_genes, .combine = bind_rows) %dopar% {
   if (USE_RANDOM_EFFECT) data.frame(gene=gene, lrtp=eagle_results$lrtp, coef=eagle_results$fit_full$beta[2]) else data.frame(gene=gene, lrtp=eagle_results$lrtp, get_coefs(eagle_results$fit_full)[2,])
 } 
 
+write.table(results, "ptsd_results.txt", quote=F, sep="\t", row.names=F)
+
+# require(ggplot2)
+
 # Do the LRT and Wald p-values agree
-theme_set(theme_bw(base_size = 14))
-ggplot(results, aes(lrtp, wald_p)) + geom_point()
+#theme_set(theme_bw(base_size = 14))
+#ggplot(results, aes(lrtp, wald_p)) + geom_point()
 
 # P-values are somewhat conservative. 
-hist(results$lrtp)
+#hist(results$lrtp)
 
 # Plot the top three associated genes. 
 #pdf("plots.pdf", height=12, width=15)
