@@ -32,7 +32,7 @@ counts_data$cond=factor(meta[counts_data$srr,"time_point_s"])
 counts_data$id=factor(meta[counts_data$srr,"id"])
 
 gene_snp$chr_pos=paste( gene_snp$chr, gene_snp$pos, sep=":")
-
+# chr22:-:300282:RP3-394A18.1
 # Helper function to make [individuals x conditions x SNPs] count tensor
 cast_me=function(snp_names, stat) { do.call(abind, c(foreach(snp=snp_names) %do% {
   res=dcast(counts_data[ counts_data$chr_pos==snp, ,drop=F], id ~ cond, value.var = stat, drop=F )
@@ -72,11 +72,11 @@ results = foreach(gene=test_genes, .combine = bind_rows) %dopar% {
   
   # Run EAGLE2
   eagle_results = tryCatch( {
-  	if (USE_RANDOM_EFFECT) eagle2_re( filtered_data$a, filtered_data$nh, iterations=3000, elbo_samples=3000 ) else eagle2( filtered_data$a, filtered_data$nh ) 
+  	if (USE_RANDOM_EFFECT) eagle2_re( filtered_data$a, filtered_data$nh, iterations=1000, elbo_samples=3000, trace=2 ) else eagle2( filtered_data$a, filtered_data$nh ) 
 	}, error=function(e) NULL )
   if (is.null(eagle_results)) return(NULL)
   # Store LRT p-value, coefficients, standard errors and Wald p-values [assumes just two conditions]
-  if (USE_RANDOM_EFFECT) data.frame(gene=gene, lrtp=eagle_results$lrtp, coef=eagle_results$fit_full$beta[2]) else data.frame(gene=gene, lrtp=eagle_results$lrtp, get_coefs(eagle_results$fit_full)[2,])
+  if (USE_RANDOM_EFFECT) data.frame(gene=gene, loglr=eagle_results$loglr, lrtp=eagle_results$lrtp, coef=eagle_results$fit_full$beta[2]) else data.frame(gene=gene, loglr=eagle_results$loglr, lrtp=eagle_results$lrtp, get_coefs(eagle_results$fit_full)[2,])
 } 
 
 write.table(results, "ptsd_results.txt", quote=F, sep="\t", row.names=F)

@@ -155,7 +155,7 @@ svem=function(grad_log_prob, to_optim, init=NULL, plot.elbo=F, log_prob=NULL, ma
 }
 
 
-svem_lbfgs=function(log_joint, grad_log_joint, to_optim, init=NULL, samples=100, trace=0, iterations=1000,factr=1e9) {
+svem_lbfgs=function(log_joint, grad_log_joint, to_optim, init=NULL, samples=100, trace=0, iterations=1000,factr=1e7) {
   
   #to_optim=c(F,T,T)
   noptim=sum(to_optim)
@@ -214,5 +214,7 @@ svem_lbfgs=function(log_joint, grad_log_joint, to_optim, init=NULL, samples=100,
   m[!to_optim]=temp[1:nintegrate]
   s[!to_optim]=exp(temp[(nintegrate+1):(2*nintegrate)])
   
-  list(m=m, s=s, elbo_opt=fit$value)
+  list(m=m, s=s, elbo_opt=fit$value, elbo_mixed=function(x) { 
+    elbo_mixed( c( x$m[to_optim], x$m[!to_optim], log(x$s[!to_optim])) )
+  })
 }

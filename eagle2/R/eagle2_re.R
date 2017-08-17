@@ -17,7 +17,7 @@ inv_logit=function(g) { 1.0/(1.0+exp(-g)) }
 #' @importFrom foreach foreach %do%
 #' @importFrom abind abind
 #' @export
-eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,iterations=1000,elbo_samples=1000,learning_rate=1.,...) {
+eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,iterations=1000,elbo_samples=1000,learning_rate=1.,seed=1,...) {
   
   N=dim(ys)[1] # individuals
   Ti=dim(ys)[2] # conditions
@@ -53,7 +53,7 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,
   to_optim=as.logical(unlist(sk))
   
   # initialize using the model fit without the random effects
-  o=optimizing(stanmodels$bb, dat, as_vector=F, seed=1)
+  o=optimizing(stanmodels$bb, dat, as_vector=F, seed=seed)
   init=list(m=get_skeleton(sampler), s=get_skeleton(sampler))
   init$m$beta=o$par$beta
   #init$m$p=logit(o$par$p)
@@ -65,7 +65,7 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,
   for (n in names(init)) init[[n]]=unlist(init[[n]])
   
   # set the seed so we can use the same seed for the alternative model
-  set.seed(1)
+  set.seed(seed)
   
   null_gradient_function=function(g) { grad_log_prob(sampler,g,T) / gradient_scale_factor }
   #null_gradient_function(init$m)
@@ -73,15 +73,15 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,
   
   cat("Fitting initial null model\n")
   v_init=if (USE_LBFGS) {
-    v_init=svem_lbfgs(null_likelihood, null_gradient_function, to_optim, init, samples=10)
-    set.seed(1)
-    svem_lbfgs(null_likelihood, null_gradient_function, to_optim, v_init)
+    v_init=svem_lbfgs(null_likelihood, null_gradient_function, to_optim, init, samples=10, iterations=iterations, ...)
+    set.seed(seed)
+    svem_lbfgs(null_likelihood, null_gradient_function, to_optim, v_init, iterations=iterations, ...)
   } else svem(null_gradient_function, to_optim, init, plot.elbo = F, log_prob = null_likelihood, iterations=burnin, master_stepsize=learning_rate, ...)
   if (is.null(init)) return(NULL)
   cat("Re-fitting null model\n")
-  set.seed(1)
+  set.seed(seed)
   v_null=if (USE_LBFGS) 
-    svem_lbfgs(null_likelihood, null_gradient_function, to_optim, v_init) else svem(null_gradient_function, to_optim, v_init, plot.elbo = F, log_prob = null_likelihood, iterations=iterations, master_stepsize=learning_rate, ...)
+    svem_lbfgs(null_likelihood, null_gradient_function, to_optim, v_init, iterations=iterations, ...) else svem(null_gradient_function, to_optim, v_init, plot.elbo = F, log_prob = null_likelihood, iterations=iterations, master_stepsize=learning_rate, ...)
   if (is.null(v_null)) return(NULL)
   # Fit alternative model
   dat_full=dat
@@ -109,10 +109,10 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,
   full_gradient_function=function(g) { grad_log_prob(sampler_full,g,T)/gradient_scale_factor }
   full_likelihood=function(g) log_prob(sampler_full,g,T,F)
   
-  set.seed(1)
+  set.seed(seed)
   cat("Fitting full model\n")
   v_full=if (USE_LBFGS) 
-    svem_lbfgs(full_likelihood, full_gradient_function, to_optim_full, init) else svem(full_gradient_function, to_optim_full, init=init, plot.elbo = F, log_prob = full_likelihood, iterations=iterations, master_stepsize=learning_rate, ... )
+     svem_lbfgs(full_likelihood, full_gradient_function, to_optim_full, init=init, iterations=iterations, ...) else svem(full_gradient_function, to_optim_full, init=init, plot.elbo = F, log_prob = full_likelihood, iterations=iterations, master_stepsize=learning_rate, ... )
   if (is.null(v_full)) return(NULL)
   # using the same random draws to estimate the deviance is more statistically efficient
   nintegrate=sum(!to_optim)
@@ -120,7 +120,7 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,
     mean( foreach(g=1:elbo_samples, .combine=c) %do% {
     x=rnorm(nintegrate)
     v_full$elbo_func( x ) - v_null$elbo_func( x ) 
-  }, na.rm=T ) }
+    }, na.rm=T ) }
   
   list(loglr=loglr, df=Ti-1, lrtp=pchisq( 2.0*loglr, lower.tail = F , df=Ti-1 ), fit_full=rstan:::rstan_relist(v_full$m, sk_full) )
 }
