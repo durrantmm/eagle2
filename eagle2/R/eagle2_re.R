@@ -53,7 +53,7 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,
   to_optim=as.logical(unlist(sk))
   
   # initialize using the model fit without the random effects
-  o=optimizing(stanmodels$bb, dat, as_vector=F)
+  o=optimizing(stanmodels$bb, dat, as_vector=F, seed=1)
   init=list(m=get_skeleton(sampler), s=get_skeleton(sampler))
   init$m$beta=o$par$beta
   #init$m$p=logit(o$par$p)
@@ -122,11 +122,5 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,
     v_full$elbo_func( x ) - v_null$elbo_func( x ) 
   }, na.rm=T ) }
   
-  #loglr=mean( foreach(g=1:1000, .combine=c) %do% {
-  #  x=rnorm(nintegrate)
-  #  v_init$elbo_func( x )
-  #}, na.rm=T )
-  #loglr=mean(v_full$elbo_progress[(maxit/2):maxit] - v_null$elbo_progress[(maxit/2):maxit])
-    
   list(loglr=loglr, df=Ti-1, lrtp=pchisq( 2.0*loglr, lower.tail = F , df=Ti-1 ), fit_full=rstan:::rstan_relist(v_full$m, sk_full) )
 }
