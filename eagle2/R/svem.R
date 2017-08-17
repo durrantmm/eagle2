@@ -171,7 +171,7 @@ svem_lbfgs=function(log_joint, grad_log_joint, to_optim, init=NULL, samples=100,
     m=temp[1:nintegrate]
     logs=temp[(nintegrate+1):(2*nintegrate)]
     s=exp(logs)
-    foreach(eta=eta_fixed, .combine = rbind) %dopar% { # could parallelize
+    foreach(eta=eta_fixed, .combine = rbind) %do% { # could parallelize
       x[!to_optim]=m+s*eta
       g=grad_log_joint(x)
       stopifnot(!any(is.na(g)))
@@ -188,7 +188,7 @@ svem_lbfgs=function(log_joint, grad_log_joint, to_optim, init=NULL, samples=100,
     m=temp[1:nintegrate]
     logs=temp[(nintegrate+1):(2*nintegrate)]
     s=exp(logs)
-    mean( foreach(eta=eta_fixed, .combine=c) %dopar% { # could parallelize
+    mean( foreach(eta=eta_fixed, .combine=c) %do% { # could parallelize
       x[!to_optim]=m+s*eta
       log_joint(x)
     } )  + sum(logs)
