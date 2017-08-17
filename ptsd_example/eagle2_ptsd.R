@@ -72,7 +72,7 @@ results = foreach(gene=test_genes, .combine = bind_rows) %dopar% {
   
   # Run EAGLE2
   eagle_results = tryCatch( {
-  	if (USE_RANDOM_EFFECT) eagle2_re( filtered_data$a, filtered_data$nh ) else eagle2( filtered_data$a, filtered_data$nh ) 
+  	if (USE_RANDOM_EFFECT) eagle2_re( filtered_data$a, filtered_data$nh, iterations=3000, elbo_samples=3000 ) else eagle2( filtered_data$a, filtered_data$nh ) 
 	}, error=function(e) NULL )
   if (is.null(eagle_results)) return(NULL)
   # Store LRT p-value, coefficients, standard errors and Wald p-values [assumes just two conditions]
