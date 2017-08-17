@@ -153,3 +153,66 @@ svem=function(grad_log_prob, to_optim, init=NULL, plot.elbo=F, log_prob=NULL, ma
   
   list(m=m, s=s, elbo_func= elbo_func, elbo_progress=adagrad_fit$log_prob)
 }
+
+
+svem_lbfgs=function(log_joint, grad_log_joint, to_optim, init=NULL, samples=100, trace=0, iterations=1000,factr=1e9) {
+  
+  #to_optim=c(F,T,T)
+  noptim=sum(to_optim)
+  nintegrate=sum(!to_optim)
+  P=length(to_optim)
+  
+  eta_fixed=foreach(i=1:samples) %do% { rnorm(nintegrate) }
+  
+  elbo_grad_mixed=function(temp0) {
+    x=numeric(P)
+    x[to_optim]=temp0[1:noptim]
+    temp=temp0[(noptim+1):length(temp0)]
+    m=temp[1:nintegrate]
+    logs=temp[(nintegrate+1):(2*nintegrate)]
+    s=exp(logs)
+    foreach(eta=eta_fixed, .combine = rbind) %dopar% { # could parallelize
+      x[!to_optim]=m+s*eta
+      g=grad_log_joint(x)
+      stopifnot(!any(is.na(g)))
+      grad_m=g[!to_optim]
+      grad_logs=grad_m*eta*s+1 # plus 1 from entropy
+      c(g[to_optim],grad_m,grad_logs)
+    } %>% colMeans()
+  }
+  
+  elbo_mixed=function(temp0) {
+    x=numeric(P)
+    x[to_optim]=temp0[1:noptim]
+    temp=temp0[(noptim+1):length(temp0)]
+    m=temp[1:nintegrate]
+    logs=temp[(nintegrate+1):(2*nintegrate)]
+    s=exp(logs)
+    mean( foreach(eta=eta_fixed, .combine=c) %dopar% { # could parallelize
+      x[!to_optim]=m+s*eta
+      log_joint(x)
+    } )  + sum(logs)
+  }
+  
+  if (is.null(init))
+    init=numeric(noptim+2*nintegrate) else
+      if (is.list(init)) 
+        init=c( init$m[to_optim], init$m[!to_optim], log(init$s[!to_optim]))
+  
+  stopifnot(length(init)==noptim+2*nintegrate)
+  a=elbo_grad_mixed(init) 
+ # stop(1)
+  fit=optim(init, elbo_mixed, elbo_grad_mixed, method="L-BFGS-B", control=list(fnscale=-1, trace=trace,maxit=iterations,factr=factr) )
+  
+  temp0=fit$par
+  
+  m=numeric(P)
+  s=numeric(P)
+  m[to_optim]=temp0[1:noptim]
+  s[to_optim]=0
+  temp=temp0[(noptim+1):length(temp0)]
+  m[!to_optim]=temp[1:nintegrate]
+  s[!to_optim]=exp(temp[(nintegrate+1):(2*nintegrate)])
+  
+  list(m=m, s=s, elbo_opt=fit$value)
+}

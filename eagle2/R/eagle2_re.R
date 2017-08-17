@@ -17,13 +17,14 @@ inv_logit=function(g) { 1.0/(1.0+exp(-g)) }
 #' @importFrom foreach foreach %do%
 #' @importFrom abind abind
 #' @export
-eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,burnin=3000,iterations=1000,elbo_samples=1000,learning_rate=1.,...) {
+eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,iterations=1000,elbo_samples=1000,learning_rate=1.,...) {
   
   N=dim(ys)[1] # individuals
   Ti=dim(ys)[2] # conditions
   K=dim(ys)[3] # SNPs
   
-  gradient_scale_factor=2000 / (N*K) # sum(ns) / Ti # average number of reads per condition
+  # gradient_scale_factor=2000 / (N*K) # sum(ns) / Ti # average number of reads per condition
+  gradient_scale_factor=1.
 
   mode(ns)="integer"
   mode(ys)="integer"
@@ -37,12 +38,18 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,burnin=3000,iterations=1
   sampler=sampling(stanmodels$bb_with_re, dat, iter=1, chains=0)
   
   # specific which parameters to optimize (rather than integrate over)
-  sk=get_skeleton(sampler)
-  sk$conc[]=T
-  sk$p[]=T
-  sk$log_rev=T
-  sk$beta[]=T
-  sk$re[]=F
+  make_skeleton=function(samp) {
+    sk=get_skeleton(samp)
+    sk$conc[]=T
+    sk$p[]=T
+    sk$log_rev=T
+    sk$beta[]=T
+    sk$re[]=F
+    sk
+  }
+  
+  sk=make_skeleton(sampler)
+  
   to_optim=as.logical(unlist(sk))
   
   # initialize using the model fit without the random effects
@@ -62,15 +69,20 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,burnin=3000,iterations=1
   
   null_gradient_function=function(g) { grad_log_prob(sampler,g,T) / gradient_scale_factor }
   #null_gradient_function(init$m)
-  null_likelihood=function(g) log_prob(sampler,g,T,F)
+  null_likelihood=function(g) { log_prob(sampler,g,T,F) }
   
   cat("Fitting initial null model\n")
-  v_init=svem(null_gradient_function, to_optim, init, plot.elbo = F, log_prob = null_likelihood, iterations=burnin, master_stepsize=learning_rate, ...)
-  if (is.null(v_init)) return(NULL)
+  v_init=if (USE_LBFGS) {
+    v_init=svem_lbfgs(null_likelihood, null_gradient_function, to_optim, init, samples=10)
+    set.seed(1)
+    svem_lbfgs(null_likelihood, null_gradient_function, to_optim, v_init)
+  } else svem(null_gradient_function, to_optim, init, plot.elbo = F, log_prob = null_likelihood, iterations=burnin, master_stepsize=learning_rate, ...)
+  if (is.null(init)) return(NULL)
   cat("Re-fitting null model\n")
   set.seed(1)
-  v_null=svem(null_gradient_function, to_optim, v_init, plot.elbo = F, log_prob = null_likelihood, iterations=iterations, master_stepsize=learning_rate, ...)
-  if (is.null(v_init)) return(NULL)
+  v_null=if (USE_LBFGS) 
+    svem_lbfgs(null_likelihood, null_gradient_function, to_optim, v_init) else svem(null_gradient_function, to_optim, v_init, plot.elbo = F, log_prob = null_likelihood, iterations=iterations, master_stepsize=learning_rate, ...)
+  if (is.null(v_null)) return(NULL)
   # Fit alternative model
   dat_full=dat
   temp=matrix(0,N,Ti)
@@ -81,12 +93,8 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,burnin=3000,iterations=1
   
   # specify which parameters to optimize
   sampler_full=sampling(stanmodels$bb_with_re, dat_full, iter=1, chains=0)
-  sk_full=get_skeleton(sampler_full)
-  sk_full$conc[]=T
-  sk_full$p[]=T
-  sk_full$log_rev=T
-  sk_full$beta[]=T
-  sk_full$re[]=F
+  
+  sk_full = make_skeleton(sampler_full)
   to_optim_full=as.logical(unlist(sk_full))
   
   # initialization choices: initializing from null fit seems best
@@ -103,14 +111,21 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,burnin=3000,iterations=1
   
   set.seed(1)
   cat("Fitting full model\n")
-  v_full=svem(full_gradient_function, to_optim_full, init=init, plot.elbo = F, log_prob = full_likelihood, iterations=iterations, master_stepsize=learning_rate, ... )
+  v_full=if (USE_LBFGS) 
+    svem_lbfgs(full_likelihood, full_gradient_function, to_optim_full, init) else svem(full_gradient_function, to_optim_full, init=init, plot.elbo = F, log_prob = full_likelihood, iterations=iterations, master_stepsize=learning_rate, ... )
   if (is.null(v_full)) return(NULL)
   # using the same random draws to estimate the deviance is more statistically efficient
   nintegrate=sum(!to_optim)
-  loglr=mean( foreach(g=1:elbo_samples, .combine=c) %do% {
+  loglr=if (USE_LBFGS) (v_full$elbo_opt - v_null$elbo_opt) else { 
+    mean( foreach(g=1:elbo_samples, .combine=c) %do% {
     x=rnorm(nintegrate)
     v_full$elbo_func( x ) - v_null$elbo_func( x ) 
-  }, na.rm=T )
+  }, na.rm=T ) }
+  
+  #loglr=mean( foreach(g=1:1000, .combine=c) %do% {
+  #  x=rnorm(nintegrate)
+  #  v_init$elbo_func( x )
+  #}, na.rm=T )
   #loglr=mean(v_full$elbo_progress[(maxit/2):maxit] - v_null$elbo_progress[(maxit/2):maxit])
     
   list(loglr=loglr, df=Ti-1, lrtp=pchisq( 2.0*loglr, lower.tail = F , df=Ti-1 ), fit_full=rstan:::rstan_relist(v_full$m, sk_full) )
