@@ -17,7 +17,7 @@ inv_logit=function(g) { 1.0/(1.0+exp(-g)) }
 #' @importFrom foreach foreach %do%
 #' @importFrom abind abind
 #' @export
-eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,iterations=1000,elbo_samples=1000,learning_rate=1.,seed=1,...) {
+eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,iterations=1000,elbo_samples=1000,learning_rate=1.,seed=1,verbose=TRUE,...) {
   
   N=dim(ys)[1] # individuals
   Ti=dim(ys)[2] # conditions
@@ -53,7 +53,7 @@ eagle2_re=function(ys,ns,concShape=1.0001,concRate=1e-4,USE_LBFGS=T,burnin=3000,
   to_optim=as.logical(unlist(sk))
   
   # initialize using the model fit without the random effects
-  o=optimizing(stanmodels$bb, dat, as_vector=F, seed=seed)
+  o=optimizing(stanmodels$bb, dat, as_vector=F, seed=seed, verbose=verbose)
   init=list(m=get_skeleton(sampler), s=get_skeleton(sampler))
   init$m$beta=o$par$beta
   #init$m$p=logit(o$par$p)
