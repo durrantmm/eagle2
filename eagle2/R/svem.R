@@ -10,7 +10,7 @@ get_skeleton=function(sampler) {
 }
 
 # Adagrad stochastic optimizer
-adagrad=function(grad, x, master_stepsize=0.1, eps=1e-6, iterations=300, verbose=F) {
+adagrad=function(grad, x, master_stepsize=0.1, eps=1e-6, iterations=300, verbose=T) {
   historical_grad=x * 0.
   #remember_g2=x * 0.
   progress=list()
@@ -30,7 +30,7 @@ robust_adagrad=function(...) {
 }
 
 # pretty unstable
-adamax=function(grad, x, master_stepsize=0.1, b1=0.1, b2=0.001, iterations=300, verbose=F) {
+adamax=function(grad, x, master_stepsize=0.1, b1=0.1, b2=0.001, iterations=300, verbose=T) {
   momentum=x * 0.
   inf_norm=x * 0.
   progress=list()
@@ -46,7 +46,7 @@ adamax=function(grad, x, master_stepsize=0.1, b1=0.1, b2=0.001, iterations=300, 
 }
 
 # adadelta: works but goes very slowly
-adadelta=function(grad, x, master_stepsize=1.0, oneMrho=0.05, eps=1e-8, iterations=300, verbose=F) {
+adadelta=function(grad, x, master_stepsize=1.0, oneMrho=0.05, eps=1e-8, iterations=300, verbose=T) {
   Eg2=x * 0.
   Edx2=x * 0.
   progress=list()
